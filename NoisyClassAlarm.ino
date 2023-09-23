@@ -1,49 +1,61 @@
 #include <Adafruit_NeoPixel.h>
 
-#define PIN            3
-#define NUMPIXELS      24
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-
-const int buzzerPin = 2;
-const int micPin = A0;
-const int potPin = A1;
+#define N_PIXELS  24  // Number of pixels in strand
+#define MIC_PIN   A0  // Microphone is attached to this analog pin
+#define LED_PIN   3  // NeoPixel LED strand is connected to this pin
+#define POT_PIN   A1  // Potentiometer is attached to this analog pin
+#define BUZZER_PIN 2  // Buzzer is attached to this digital pin
 
 int threshold = 0;
-int soundLevel = 0;
+int lvl = 0;
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
-  pinMode(buzzerPin, OUTPUT);
-  pinMode(micPin, INPUT);
-  pinMode(potPin, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);  // Set buzzer pin as output
+  pinMode(POT_PIN, INPUT);      // Set potentiometer pin as input
+  Serial.begin(9600);           // Initialize Serial communication for debugging
   strip.begin();
-  strip.show();
 }
 
 void loop() {
-  threshold = analogRead(potPin);  // Read the potentiometer value
-  soundLevel = analogRead(micPin); // Read the KY-037 microphone level
+  // Read the potentiometer value
+  threshold = analogRead(POT_PIN);
 
-  int scaledThreshold = map(threshold, 0, 1023, 0, NUMPIXELS);
-  int scaledSound = map(soundLevel, 0, 1023, 0, NUMPIXELS);
+  // Read the microphone level
+  int n = analogRead(MIC_PIN);
+  lvl = abs(n - 512);
 
-  // Update LEDs
-  for (int i = 0; i < NUMPIXELS; i++) {
-    if (i < scaledSound) {
-      if (i >= scaledThreshold) {
-        strip.setPixelColor(i, strip.Color(255, 0, 0)); // Red
-      } else {
-        strip.setPixelColor(i, strip.Color(0, 255, 0)); // Green
-      }
+  // Debugging: Output values to Serial Monitor
+  Serial.print("lvl: "); Serial.print(lvl);
+  Serial.print("\tThreshold: "); Serial.println(threshold);
+
+  // Buzzer logic
+  if (lvl >= threshold) {
+    digitalWrite(BUZZER_PIN, HIGH);
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+
+  // LED logic
+  int height = map(lvl, 0, 1023, 0, N_PIXELS);
+  for(int i = 0; i < N_PIXELS; i++) {
+    if(i < height) {
+      strip.setPixelColor(i, Wheel(map(i, 0, N_PIXELS - 1, 30, 150)));
     } else {
-      strip.setPixelColor(i, strip.Color(0, 0, 0)); // Off
+      strip.setPixelColor(i, 0);
     }
   }
   strip.show();
+}
 
-  // Check if sound level exceeds threshold
-  if (scaledSound >= scaledThreshold) {
-    digitalWrite(buzzerPin, HIGH); // Turn on buzzer
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+    return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if(WheelPos < 170) {
+    WheelPos -= 85;
+    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
   } else {
-    digitalWrite(buzzerPin, LOW);  // Turn off buzzer
+    WheelPos -= 170;
+    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
   }
 }
